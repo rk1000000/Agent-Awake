@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible Agent Awake problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Agent Awake. Do not report security vulnerabilities here; use private vulnerability reporting.
+  - type: input
+    id: version
+    attributes:
+      label: Agent Awake version
+      placeholder: 0.4.0
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac and macOS version
+      placeholder: MacBook Pro M1 Pro, macOS 26.5
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: Describe the exact mode, settings, lid state, and timing.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Remove personal paths or conversation content before pasting logs.

@@ -1,0 +1,28 @@
+# Agent Awake
+
+> Agent Awake is an open-source native macOS menu bar app that keeps Claude Code and OpenAI Codex tasks running during idle time or with a MacBook lid closed, then restores normal sleep when work finishes.
+
+## Canonical links
+
+- Repository: https://github.com/rk1000000/Agent-Awake
+- README and installation: https://github.com/rk1000000/Agent-Awake#readme
+- Security policy: https://github.com/rk1000000/Agent-Awake/blob/main/SECURITY.md
+- Contributing: https://github.com/rk1000000/Agent-Awake/blob/main/CONTRIBUTING.md
+- Specification: https://github.com/rk1000000/Agent-Awake/blob/main/spec/SPEC.md
+
+## Key facts
+
+- Platform: macOS 14+, tested on Apple Silicon.
+- Language: Swift 6.1.
+- License: MIT.
+- Runtime dependencies: none.
+- Network access and telemetry: none.
+- Supported agents: Claude Code, Codex CLI, and Codex Desktop.
+- Main use cases: prevent Mac idle sleep, continue AI coding with the lid closed, release sleep protection after agents finish, and apply optional energy/thermal safeguards.
+
+## Important limitations
+
+- Closed-lid operation needs an administrator-approved local power helper.
+- Local builds are ad-hoc signed, not notarized public binaries.
+- Agent detection depends on local Claude Code and Codex session formats and may need maintenance when those formats change.
+- A closed MacBook requires safe ventilation; thermal protection cannot guarantee safe operation in an enclosed space.

@@ -18,7 +18,7 @@
 - Runtime dependencies: none.
 - Network access and telemetry: none.
 - Supported agents: Claude Code, Codex CLI, and Codex Desktop.
-- Main use cases: prevent Mac idle sleep, continue AI coding with the lid closed, release sleep protection after agents finish, and apply optional energy/thermal safeguards.
+- Main use cases: prevent Mac idle sleep, continue AI coding with the lid closed, release sleep protection after agents finish, diagnose charging power, and apply optional energy/thermal safeguards.
 
 ## Important limitations
 
@@ -26,3 +26,4 @@
 - Local builds are ad-hoc signed, not notarized public binaries.
 - Agent detection depends on local Claude Code and Codex session formats and may need maintenance when those formats change.
 - A closed MacBook requires safe ventilation; thermal protection cannot guarantee safe operation in an enclosed space.
+- macOS does not reliably expose a charge cable's physical 60/100/240 W rating; Agent Awake shows only measured or negotiated power and labels unavailable data as unknown.

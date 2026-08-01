@@ -565,5 +565,122 @@ test("незавершённый старый журнал Claude не счит�
     try expect(snapshot.claudeActiveCount == 0, "старый незавершённый журнал остался активным")
 }
 
+test("нормальная зарядка показывает блок, фактическую мощность и честный предел кабеля") {
+    let presentation = ChargingDiagnostics.presentation(
+        for: ChargingTelemetry(
+            externalPowerConnected: true,
+            adapterWatts: 96,
+            inputWatts: 42.4,
+            batteryWatts: 8,
+            slowChargingDetected: false
+        )
+    )
+
+    try expect(
+        presentation.menuLines == [
+            "Блок питания: 96 Вт",
+            "Mac получает: около 42 Вт",
+            "Кабель/соединение: ≥42 Вт подтверждено · номинал неизвестен",
+            "Зарядка: питание в норме"
+        ],
+        "информация о нормальной зарядке показана неверно: \(presentation.menuLines)"
+    )
+    try expect(!presentation.shouldWarn, "нормальная зарядка ошибочно вызвала предупреждение")
+}
+
+test("сигнал Slow Charger предупреждает проверить блок или кабель") {
+    let presentation = ChargingDiagnostics.presentation(
+        for: ChargingTelemetry(
+            externalPowerConnected: true,
+            adapterWatts: 30,
+            inputWatts: 27.6,
+            batteryWatts: 4,
+            slowChargingDetected: true
+        )
+    )
+
+    try expect(presentation.shouldWarn, "Slow Charger не включил предупреждение")
+    try expect(
+        presentation.menuLines.last
+            == "⚠︎ Зарядка медленная · проверьте блок или кабель",
+        "причина медленной зарядки показана неверно"
+    )
+}
+
+test("разряд батареи от сети означает нехватку питания под нагрузкой") {
+    let presentation = ChargingDiagnostics.presentation(
+        for: ChargingTelemetry(
+            externalPowerConnected: true,
+            adapterWatts: 60,
+            inputWatts: 58,
+            batteryWatts: -6.2,
+            slowChargingDetected: false
+        )
+    )
+
+    try expect(presentation.shouldWarn, "разряд от сети не включил предупреждение")
+    try expect(
+        presentation.menuLines.last
+            == "⚠︎ Питания не хватает под текущей нагрузкой",
+        "разряд от сети получил неверный диагноз"
+    )
+}
+
+test("неполные данные macOS не превращаются в ложный диагноз") {
+    let presentation = ChargingDiagnostics.presentation(
+        for: ChargingTelemetry(
+            externalPowerConnected: true,
+            adapterWatts: nil,
+            inputWatts: nil,
+            batteryWatts: nil,
+            slowChargingDetected: false
+        )
+    )
+
+    try expect(!presentation.shouldWarn, "неизвестные данные ошибочно вызвали тревогу")
+    try expect(
+        presentation.menuLines == [
+            "Блок питания: не удалось определить",
+            "Mac получает: не удалось определить",
+            "Кабель/соединение: номинал не сообщается macOS",
+            "Зарядка: недостаточно данных"
+        ],
+        "неизвестные данные скрыты или выданы за норму"
+    )
+}
+
+test("Sosumi предупреждает после 10 секунд проблемы и не повторяется до восстановления") {
+    var notification = ChargingWarningNotification(delay: 10)
+
+    try expect(
+        !notification.update(problemDetected: true, now: now),
+        "звук появился сразу"
+    )
+    try expect(
+        !notification.update(problemDetected: true, now: now.addingTimeInterval(9)),
+        "звук появился раньше 10 секунд"
+    )
+    try expect(
+        notification.update(problemDetected: true, now: now.addingTimeInterval(10)),
+        "звук не появился после 10 секунд проблемы"
+    )
+    try expect(
+        !notification.update(problemDetected: true, now: now.addingTimeInterval(20)),
+        "звук повторился при той же проблеме"
+    )
+    try expect(
+        !notification.update(problemDetected: false, now: now.addingTimeInterval(21)),
+        "восстановление питания ошибочно вызвало звук"
+    )
+    try expect(
+        !notification.update(problemDetected: true, now: now.addingTimeInterval(22)),
+        "новая проблема не начала новую задержку"
+    )
+    try expect(
+        notification.update(problemDetected: true, now: now.addingTimeInterval(32)),
+        "уведомление не перевзвелось после восстановления"
+    )
+}
+
 print("Tests: \(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -7,13 +7,15 @@ struct SystemSnapshot {
     let lidClosed: Bool
     let lidCausesSleep: Bool?
     let powerDescription: String
+    let chargingTelemetry: ChargingTelemetry
 
     static func current() -> SystemSnapshot {
         SystemSnapshot(
             thermalLevel: thermalLevel(from: ProcessInfo.processInfo.thermalState),
             lidClosed: ClamshellController.lidIsClosed() ?? false,
             lidCausesSleep: ClamshellController.lidCurrentlyCausesSleep(),
-            powerDescription: currentPowerDescription()
+            powerDescription: currentPowerDescription(),
+            chargingTelemetry: ChargingPowerReader.current()
         )
     }
 

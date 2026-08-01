@@ -3,13 +3,21 @@ import AgentAwakeCore
 
 enum Diagnostics {
     static func run() -> Int32 {
+        let system = SystemSnapshot.current()
         print("Agent Awake diagnostics")
-        print("Thermal: \(SystemSnapshot.current().thermalLevel.displayName)")
+        print("Thermal: \(system.thermalLevel.displayName)")
         print("Lid closed: \(ClamshellController.lidIsClosed().map(String.init) ?? "unknown")")
         print("System SleepDisabled: \(ClamshellController.systemSleepIsDisabled().map(String.init) ?? "unknown")")
         let brightness = try? BuiltInDisplayBrightnessController().currentBrightness()
         print("Built-in display brightness: \(brightness.map { String(format: "%.0f%%", $0 * 100) } ?? "unavailable")")
         print("Low Power Mode: \(ProcessInfo.processInfo.isLowPowerModeEnabled ? "ON" : "OFF")")
+
+        let charging = ChargingDiagnostics.presentation(for: system.chargingTelemetry)
+        if charging.menuLines.isEmpty {
+            print("Charging power: external power not detected")
+        } else {
+            charging.menuLines.forEach { print("Charging power: \($0)") }
+        }
 
         let assertion = SleepAssertionController()
         let assertionResult = assertion.setHeld(true)

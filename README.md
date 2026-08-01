@@ -25,6 +25,7 @@ Agent Awake is designed for that exact workflow:
 - **Energy saving** — after 10 seconds with the lid closed, optionally set the built-in display to 0% and enable Low Power Mode.
 - **Thermal safety** — optionally release all holds and sleep when macOS reports `serious` or `critical` thermal pressure.
 - **Clear feedback** — menu bar countdown plus separate Purr and Tink sounds for sleep protection and completed energy saving.
+- **Charging diagnostics** — shows adapter wattage, current Mac input, a confirmed cable/connection lower bound, and a sustained weak-power warning.
 - **Private by design** — no network requests, accounts, analytics, telemetry, or cloud service.
 
 ## Requirements
@@ -37,6 +38,8 @@ Agent Awake is designed for that exact workflow:
 The current implementation has been tested on a 2021 MacBook Pro with Apple M1 Pro. Compatibility with future Claude Code, Codex, or macOS log formats is not guaranteed.
 
 Built-in display brightness automation uses Apple's private DisplayServices framework. Agent Awake handles an unavailable framework as an error, but that feature may require maintenance after macOS updates.
+
+Charging diagnostics use the power values that macOS exposes locally. macOS reports the connected adapter wattage and, on supported Apple Silicon models, live power telemetry. It does not provide a stable public field for the cable's printed 60/100/240 W rating, so Agent Awake shows only the minimum wattage demonstrably passing through the connection and labels an unavailable rating as unknown. A low current draw alone is not treated as a fault.
 
 ## Build and install from source
 
@@ -109,6 +112,10 @@ No. Agent Awake has no networking code or telemetry. Agent state is derived loca
 ### Will it prevent overheating?
 
 No software can guarantee that. Optional thermal protection reacts to the official macOS thermal state, but users must still provide airflow and avoid enclosed spaces.
+
+### Can Agent Awake tell whether my charger or cable is too weak?
+
+It can identify a sustained power shortfall: macOS reports a slow charger, or the battery continues discharging by more than 1 W while external power is connected. The menu then suggests checking the adapter or cable and plays Sosumi once after 10 seconds. Compatible higher- or lower-wattage USB-C Power Delivery adapters are safe to use; lower available power can charge more slowly or fail to keep up with a heavy workload. Because macOS does not reliably expose the cable's physical rating, Agent Awake never invents one or claims which component is at fault.
 
 ### Why is administrator approval required?
 

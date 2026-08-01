@@ -18,6 +18,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         contentsOfFile: "/System/Library/Sounds/Tink.aiff",
         byReference: true
     )
+    private let chargingWarning = ChargingWarningController()
     private let logger = Logger(subsystem: "com.rodion.agentawake", category: "state")
     private let detectorQueue = DispatchQueue(label: "com.rodion.agentawake.detector", qos: .utility)
 
@@ -141,6 +142,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func tick() {
         system = .current()
+        let charging = ChargingDiagnostics.presentation(for: system.chargingTelemetry)
+        chargingWarning.update(problemDetected: charging.shouldWarn)
         reconcileBrightness()
         do {
             try powerHelper.setLowPowerOnLidClose(lowPowerOnLidClose)
@@ -388,6 +391,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addDisabledItem("Агенты: \(agents.displayText)", to: menu)
         addDisabledItem("Нагрев: \(system.thermalLevel.displayName)", to: menu)
         addDisabledItem("Крышка: \(system.lidClosed ? "закрыта" : "открыта") · питание: \(system.powerDescription)", to: menu)
+        let charging = ChargingDiagnostics.presentation(for: system.chargingTelemetry)
+        for line in charging.menuLines {
+            addDisabledItem(line, to: menu)
+        }
 
         if let lastError {
             addDisabledItem("⚠︎ \(lastError)", to: menu)

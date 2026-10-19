@@ -5,7 +5,7 @@
 [![CI](https://github.com/rk1000000/Agent-Awake/actions/workflows/ci.yml/badge.svg)](https://github.com/rk1000000/Agent-Awake/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](https://www.apple.com/macos/)
-[![Swift 6.1](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org/)
+[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange?logo=swift)](https://www.swift.org/)
 
 Agent Awake is a native, local-only macOS menu bar app for unattended AI coding sessions. It combines a normal idle-sleep assertion with a small privileged helper for clamshell sleep, watches local Claude Code and Codex session logs, and automatically releases the Mac when the selected timer or agent work finishes.
 
@@ -32,7 +32,7 @@ Agent Awake is designed for that exact workflow:
 
 - macOS 14 or newer.
 - Apple Silicon is tested; Intel Macs are not currently validated.
-- Swift 6.0 or newer and the Xcode Command Line Tools for building from source.
+- Swift 6.0 or newer and the Xcode Command Line Tools for building from source. The package uses tools 5.9 manifest syntax and the default Swift 5 language mode for compatibility with standalone Command Line Tools.
 - Installation in `/Applications/Agent Awake.app` for the privileged helper and launch-at-login support.
 
 The current implementation has been tested on a 2021 MacBook Pro with Apple M1 Pro. Compatibility with future Claude Code, Codex, or macOS log formats is not guaranteed.

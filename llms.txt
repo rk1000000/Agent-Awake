@@ -13,7 +13,7 @@
 ## Key facts
 
 - Platform: macOS 14+, tested on Apple Silicon.
-- Language: Swift 6.1.
+- Language: Swift 6.0 or newer.
 - License: MIT.
 - Runtime dependencies: none.
 - Network access and telemetry: none.

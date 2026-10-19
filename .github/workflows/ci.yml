@@ -10,25 +10,38 @@ permissions:
 
 jobs:
   test:
+    name: ${{ matrix.toolchain }}
     runs-on: macos-15
     timeout-minutes: 15
     strategy:
       matrix:
-        xcode: ['16.2', '16.4']
+        include:
+          - toolchain: Xcode 16.2
+            developer_dir: /Applications/Xcode_16.2.app/Contents/Developer
+          - toolchain: Xcode 16.4
+            developer_dir: /Applications/Xcode_16.4.app/Contents/Developer
+          - toolchain: Command Line Tools
+            developer_dir: /Library/Developer/CommandLineTools
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+      DEVELOPER_DIR: ${{ matrix.developer_dir }}
     steps:
       - name: Check out source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - name: Show Swift version
-        run: swift --version
+      - name: Show Swift toolchain
+        run: |
+          xcrun --find swift
+          xcrun --show-sdk-path
+          swift --version
 
       - name: Run behavior tests
         run: swift run AgentAwakeTests
 
       - name: Build with warnings as errors
         run: swift build -c release -Xswiftc -warnings-as-errors
+
+      - name: Build and package app
+        run: ./scripts/build-app.sh
 
       - name: Validate shell scripts and plists
         run: |

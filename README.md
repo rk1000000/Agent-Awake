@@ -41,6 +41,29 @@ Built-in display brightness automation uses Apple's private DisplayServices fram
 
 Charging diagnostics use the power values that macOS exposes locally. macOS reports the connected adapter wattage and, on supported Apple Silicon models, live power telemetry. For `MacBookPro18,1` and `MacBookPro18,2`, Agent Awake compares the adapter with Apple's 140 W recommendation for the 16-inch 2021 MacBook Pro. It does not provide a stable public field for the cable's printed 60/100/240 W rating, so Agent Awake shows only the minimum wattage demonstrably passing through the connection and labels an unavailable rating as unknown. An adapter below the recommendation is a useful compatibility signal, but it is not treated as proof of a charging fault unless macOS reports slow charging or the battery is actually discharging on external power.
 
+## Download and install (no Swift required)
+
+**[Download Agent Awake for Apple Silicon](https://github.com/rk1000000/Agent-Awake/releases/download/v0.5.0/Agent-Awake-0.5.0-arm64.zip)** — https://github.com/rk1000000/Agent-Awake/releases/download/v0.5.0/Agent-Awake-0.5.0-arm64.zip
+
+Requires macOS 14 or newer and an Apple Silicon Mac. No Swift or Xcode is needed. This archive does not support Intel Macs.
+
+1. Unzip the download.
+2. Move **Agent Awake.app** to **Applications** (`/Applications`).
+3. The app is ad-hoc signed, not notarized by Apple. If macOS blocks this downloaded build, run:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Agent Awake.app" &&
+open "/Applications/Agent Awake.app"
+```
+
+This removes quarantine only from Agent Awake and its contents; it does not disable macOS security globally. Use it only for this trusted release from this repository. Alternatively, after trying to launch the app, use **System Settings → Privacy & Security → Open Anyway**.
+
+The app appears in the menu bar, without a separate window. Closed-lid protection requires administrator approval to install its helper. Keep the app in `/Applications` for that installation.
+
+To update, quit Agent Awake from its menu, replace the app in Applications, then run the command above.
+
+Launch was confirmed on macOS 15.2 / Apple Silicon after removing quarantine. Building from source is a separate option below and requires a working Swift toolchain.
+
 ## Build and install from source
 
 ```bash

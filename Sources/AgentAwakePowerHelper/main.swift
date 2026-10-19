@@ -194,7 +194,9 @@ signal(SIGTERM) { _ in shouldStop = true }
 signal(SIGINT) { _ in shouldStop = true }
 
 while !shouldStop {
-    reconcile()
+    autoreleasepool {
+        reconcile()
+    }
     Thread.sleep(forTimeInterval: 1)
 }
 

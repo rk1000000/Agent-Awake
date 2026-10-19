@@ -1,6 +1,7 @@
 public struct ChargingTelemetry: Equatable {
     public let externalPowerConnected: Bool
     public let adapterWatts: Int?
+    public let recommendedAdapterWatts: Int?
     public let inputWatts: Double?
     public let batteryWatts: Double?
     public let slowChargingDetected: Bool
@@ -8,12 +9,14 @@ public struct ChargingTelemetry: Equatable {
     public init(
         externalPowerConnected: Bool,
         adapterWatts: Int?,
+        recommendedAdapterWatts: Int? = nil,
         inputWatts: Double?,
         batteryWatts: Double?,
         slowChargingDetected: Bool
     ) {
         self.externalPowerConnected = externalPowerConnected
         self.adapterWatts = adapterWatts
+        self.recommendedAdapterWatts = recommendedAdapterWatts
         self.inputWatts = inputWatts
         self.batteryWatts = batteryWatts
         self.slowChargingDetected = slowChargingDetected
@@ -36,7 +39,10 @@ public enum ChargingDiagnostics {
             return ChargingPresentation(menuLines: [], shouldWarn: false)
         }
 
-        let adapter = telemetry.adapterWatts.map { "\($0) Вт" } ?? "не удалось определить"
+        let adapter = adapterDescription(
+            adapterWatts: telemetry.adapterWatts,
+            recommendedWatts: telemetry.recommendedAdapterWatts
+        )
         let input = telemetry.inputWatts.map { roundedWatts($0) }
         let inputDescription = input.map { "около \($0) Вт" } ?? "не удалось определить"
         let cableDescription = input.map {
@@ -70,5 +76,23 @@ public enum ChargingDiagnostics {
 
     private static func roundedWatts(_ value: Double) -> Int {
         Int(value.rounded())
+    }
+
+    private static func adapterDescription(
+        adapterWatts: Int?,
+        recommendedWatts: Int?
+    ) -> String {
+        guard let adapterWatts else {
+            if let recommendedWatts {
+                return "не удалось определить · ориентир \(recommendedWatts) Вт"
+            }
+            return "не удалось определить"
+        }
+        guard let recommendedWatts else {
+            return "\(adapterWatts) Вт"
+        }
+
+        let assessment = adapterWatts >= recommendedWatts ? "норма" : "ниже ориентира"
+        return "\(adapterWatts)/\(recommendedWatts) Вт · \(assessment)"
     }
 }

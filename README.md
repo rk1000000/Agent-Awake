@@ -24,8 +24,8 @@ Agent Awake is designed for that exact workflow:
 - **Automatic release** — allow normal macOS sleep or request immediate sleep after agents finish.
 - **Energy saving** — after 10 seconds with the lid closed, optionally set the built-in display to 0% and enable Low Power Mode.
 - **Thermal safety** — optionally release all holds and sleep when macOS reports `serious` or `critical` thermal pressure.
-- **Clear feedback** — menu bar countdown plus separate Purr and Tink sounds for sleep protection and completed energy saving.
-- **Charging diagnostics** — shows adapter wattage, current Mac input, a confirmed cable/connection lower bound, and a sustained weak-power warning.
+- **Clear feedback** — menu bar countdown, a one-time Funk warning in the last timer minute, plus separate Purr and Tink sounds for sleep protection and completed energy saving.
+- **Charging diagnostics** — compares adapter wattage with the Apple-recommended baseline for supported Mac models, shows current Mac input and a confirmed cable/connection lower bound, and warns about sustained weak power.
 - **Private by design** — no network requests, accounts, analytics, telemetry, or cloud service.
 
 ## Requirements
@@ -39,7 +39,7 @@ The current implementation has been tested on a 2021 MacBook Pro with Apple M1 P
 
 Built-in display brightness automation uses Apple's private DisplayServices framework. Agent Awake handles an unavailable framework as an error, but that feature may require maintenance after macOS updates.
 
-Charging diagnostics use the power values that macOS exposes locally. macOS reports the connected adapter wattage and, on supported Apple Silicon models, live power telemetry. It does not provide a stable public field for the cable's printed 60/100/240 W rating, so Agent Awake shows only the minimum wattage demonstrably passing through the connection and labels an unavailable rating as unknown. A low current draw alone is not treated as a fault.
+Charging diagnostics use the power values that macOS exposes locally. macOS reports the connected adapter wattage and, on supported Apple Silicon models, live power telemetry. For `MacBookPro18,1` and `MacBookPro18,2`, Agent Awake compares the adapter with Apple's 140 W recommendation for the 16-inch 2021 MacBook Pro. It does not provide a stable public field for the cable's printed 60/100/240 W rating, so Agent Awake shows only the minimum wattage demonstrably passing through the connection and labels an unavailable rating as unknown. An adapter below the recommendation is a useful compatibility signal, but it is not treated as proof of a charging fault unless macOS reports slow charging or the battery is actually discharging on external power.
 
 ## Build and install from source
 
@@ -87,9 +87,16 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and the supported-v
 
 ## Development
 
+Power helper version 6 releases temporary Foundation objects after every polling
+iteration. This fixes autoreleased-object accumulation without changing
+sleep, heartbeat validation, or low-power behaviour. Updating an existing installation
+requires replacing both its bundled helper/version and the installed privileged helper;
+the menu-bar executable can remain unchanged.
+
 ```bash
 swift run AgentAwakeTests
 swift build -c release -Xswiftc -warnings-as-errors
+swift scripts/check-helper-memory.swift "$PWD"
 bash -n AppBundle/install-power-helper.sh scripts/*.sh
 ```
 
@@ -124,3 +131,13 @@ Ordinary applications can block idle sleep but cannot reliably override clamshel
 ## License
 
 Agent Awake is available under the [MIT License](LICENSE).
+
+### Detector polling cost
+
+Session discovery caches directory entries using fresh filesystem metadata.
+Each two-second poll still checks every journal's current metadata and session age,
+but unchanged journals reuse their last activity result instead of parsing JSON again.
+A changed, replaced, truncated or expired journal is re-evaluated on the next poll.
+`bash scripts/check-detector-energy.sh` compares the detector with the original
+implementation on copies of 50 real local sessions and measures warm polling time.
+It requires this repository's original detector in HEAD and local Claude/Codex logs.

@@ -212,6 +212,42 @@ test("остаток таймера показывается в строке м�
     )
 }
 
+test("Funk предупреждает один раз в последнюю минуту и перевзводится новым сроком") {
+    var notification = TimerExpiryNotification(warningThreshold: 60)
+    let firstDeadline = now.addingTimeInterval(120)
+
+    try expect(
+        !notification.update(deadline: firstDeadline, now: now),
+        "звук появился раньше последней минуты"
+    )
+    try expect(
+        notification.update(deadline: firstDeadline, now: now.addingTimeInterval(60)),
+        "звук не появился при остатке 60 секунд"
+    )
+    try expect(
+        !notification.update(deadline: firstDeadline, now: now.addingTimeInterval(90)),
+        "звук повторился для того же срока"
+    )
+    try expect(
+        !notification.update(deadline: firstDeadline, now: now.addingTimeInterval(121)),
+        "истёкший срок ошибочно вызвал звук"
+    )
+
+    let extendedDeadline = now.addingTimeInterval(240)
+    try expect(
+        !notification.update(deadline: extendedDeadline, now: now.addingTimeInterval(121)),
+        "продление раньше последней минуты ошибочно вызвало звук"
+    )
+    try expect(
+        notification.update(deadline: extendedDeadline, now: now.addingTimeInterval(180)),
+        "новый срок не перевзвел предупреждение"
+    )
+    try expect(
+        !notification.update(deadline: nil, now: now.addingTimeInterval(181)),
+        "режим без срока ошибочно вызвал звук"
+    )
+}
+
 test("свой таймер принимает только целое число от 1 до 60 минут") {
     try expect(TimedSession.parseMinutes(" 1 ") == 1, "1 минута отклонена")
     try expect(TimedSession.parseMinutes("60") == 60, "60 минут отклонены")
@@ -569,7 +605,8 @@ test("нормальная зарядка показывает блок, фак�
     let presentation = ChargingDiagnostics.presentation(
         for: ChargingTelemetry(
             externalPowerConnected: true,
-            adapterWatts: 96,
+            adapterWatts: 60,
+            recommendedAdapterWatts: 140,
             inputWatts: 42.4,
             batteryWatts: 8,
             slowChargingDetected: false
@@ -578,7 +615,7 @@ test("нормальная зарядка показывает блок, фак�
 
     try expect(
         presentation.menuLines == [
-            "Блок питания: 96 Вт",
+            "Блок питания: 60/140 Вт · ниже ориентира",
             "Mac получает: около 42 Вт",
             "Кабель/соединение: ≥42 Вт подтверждено · номинал неизвестен",
             "Зарядка: питание в норме"
@@ -586,6 +623,36 @@ test("нормальная зарядка показывает блок, фак�
         "информация о нормальной зарядке показана неверно: \(presentation.menuLines)"
     )
     try expect(!presentation.shouldWarn, "нормальная зарядка ошибочно вызвала предупреждение")
+}
+
+test("16-дюймовый MacBook Pro 2021 использует ориентир Apple 140 Вт") {
+    try expect(
+        MacPowerProfile.recommendedAdapterWatts(forModelIdentifier: "MacBookPro18,1") == 140,
+        "MacBookPro18,1 получил неверный ориентир мощности"
+    )
+    try expect(
+        MacPowerProfile.recommendedAdapterWatts(forModelIdentifier: "MacBookPro18,2") == 140,
+        "MacBookPro18,2 получил неверный ориентир мощности"
+    )
+}
+
+test("штатный 140-ваттный блок явно помечается как норма") {
+    let presentation = ChargingDiagnostics.presentation(
+        for: ChargingTelemetry(
+            externalPowerConnected: true,
+            adapterWatts: 140,
+            recommendedAdapterWatts: 140,
+            inputWatts: 80,
+            batteryWatts: 10,
+            slowChargingDetected: false
+        )
+    )
+
+    try expect(
+        presentation.menuLines.first == "Блок питания: 140/140 Вт · норма",
+        "штатная мощность не помечена как норма: \(presentation.menuLines)"
+    )
+    try expect(!presentation.shouldWarn, "штатный блок ошибочно вызвал предупреждение")
 }
 
 test("сигнал Slow Charger предупреждает проверить блок или кабель") {

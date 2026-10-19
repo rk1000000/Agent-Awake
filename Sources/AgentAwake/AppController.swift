@@ -18,6 +18,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         contentsOfFile: "/System/Library/Sounds/Tink.aiff",
         byReference: true
     )
+    private let timerExpirySound = NSSound(
+        contentsOfFile: "/System/Library/Sounds/Funk.aiff",
+        byReference: true
+    )
     private let chargingWarning = ChargingWarningController()
     private let logger = Logger(subsystem: "com.rodion.agentawake", category: "state")
     private let detectorQueue = DispatchQueue(label: "com.rodion.agentawake.detector", qos: .utility)
@@ -40,6 +44,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var brightnessAction = DelayedLidAction(delay: 10)
     private var sleepProtectionNotification = SleepProtectionNotification(delay: 1)
     private var energySuccessNotification = EnergySuccessNotification()
+    private var timerExpiryNotification = TimerExpiryNotification()
 
     private var keepAwakeWithLidClosed: Bool {
         get { boolDefault(forKey: "keepAwakeWithLidClosed", fallback: true) }
@@ -192,6 +197,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func evaluatePolicy() {
+        reconcileTimerExpiryNotification()
+
         if mode == .agents && !hasCompletedAgentScan {
             return
         }
@@ -392,6 +399,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addDisabledItem("Нагрев: \(system.thermalLevel.displayName)", to: menu)
         addDisabledItem("Крышка: \(system.lidClosed ? "закрыта" : "открыта") · питание: \(system.powerDescription)", to: menu)
         let charging = ChargingDiagnostics.presentation(for: system.chargingTelemetry)
+        if !charging.menuLines.isEmpty {
+            menu.addItem(.separator())
+        }
         for line in charging.menuLines {
             addDisabledItem(line, to: menu)
         }
@@ -717,6 +727,33 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             NSSound.beep()
             logger.notice("energy success fallback sound requested after Tink playback failure")
+        }
+    }
+
+    private func reconcileTimerExpiryNotification() {
+        let deadline: Date?
+        if case let .timed(until) = mode {
+            deadline = until
+        } else {
+            deadline = nil
+        }
+
+        guard timerExpiryNotification.update(deadline: deadline) else {
+            return
+        }
+
+        guard let timerExpirySound else {
+            NSSound.beep()
+            logger.notice("timer expiry fallback sound requested with at most 60 seconds remaining")
+            return
+        }
+        timerExpirySound.stop()
+        timerExpirySound.currentTime = 0
+        if timerExpirySound.play() {
+            logger.notice("timer expiry Funk played with at most 60 seconds remaining")
+        } else {
+            NSSound.beep()
+            logger.notice("timer expiry fallback sound requested after Funk playback failure")
         }
     }
 

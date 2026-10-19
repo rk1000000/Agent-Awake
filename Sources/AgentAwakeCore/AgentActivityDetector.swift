@@ -22,7 +22,12 @@ public struct AgentActivitySnapshot: Equatable {
 }
 
 public final class AgentActivityDetector {
-    private let fileManager: FileManager
+    private let fileIndex: SessionFileIndex
+    private struct CachedState {
+        let stamp: SessionFileStamp
+        let state: Bool?
+    }
+    private var states: [String: CachedState] = [:]
     private let homeURL: URL
     private let maximumSessionAge: TimeInterval
     private let initialTailSize = 256 * 1024
@@ -34,63 +39,56 @@ public final class AgentActivityDetector {
     ) {
         self.homeURL = homeURL
         self.maximumSessionAge = maximumSessionAge
-        self.fileManager = fileManager
+        self.fileIndex = SessionFileIndex(fileManager: fileManager)
     }
 
     public func snapshot(now: Date = Date()) -> AgentActivitySnapshot {
         let codexRoot = homeURL.appendingPathComponent(".codex/sessions", isDirectory: true)
         let claudeRoot = homeURL.appendingPathComponent(".claude/projects", isDirectory: true)
 
-        let codexCount = recentJSONLFiles(under: codexRoot, now: now)
-            .filter {
-                lastActivityState(from: $0, classifier: AgentLogClassifier.codexActivityState) == true
+        var retainedStates: [String: CachedState] = [:]
+        var codexCount = 0
+        var claudeCount = 0
+        for entry in fileIndex.files(under: [codexRoot, claudeRoot]) {
+            let file = entry.url
+            let path = file.path
+            guard !path.contains("claude-mem-observer-sessions"),
+                  let stamp = SessionFileStamp(path: path), stamp.isRegularFile,
+                  now.timeIntervalSince(stamp.modifiedAt) <= maximumSessionAge else { continue }
+            let isCodex = entry.rootIndex == 0
+            let cached: CachedState
+            if let previous = states[path], previous.stamp == stamp {
+                cached = previous
+            } else {
+                let state = lastActivityState(
+                    from: file,
+                    fileSize: Int(stamp.size),
+                    classifier: isCodex ? AgentLogClassifier.codexActivityState
+                        : AgentLogClassifier.claudeActivityState
+                )
+                // Never cache a result if a writer changed the file during the read.
+                if SessionFileStamp(path: path) != stamp {
+                    if state == true {
+                        if isCodex { codexCount += 1 } else { claudeCount += 1 }
+                    }
+                    continue
+                }
+                cached = CachedState(stamp: stamp, state: state)
             }
-            .count
-
-        let claudeCount = recentJSONLFiles(under: claudeRoot, now: now)
-            .filter { !$0.path.contains("claude-mem-observer-sessions") }
-            .filter {
-                lastActivityState(from: $0, classifier: AgentLogClassifier.claudeActivityState) == true
+            retainedStates[path] = cached
+            if cached.state == true {
+                if isCodex { codexCount += 1 } else { claudeCount += 1 }
             }
-            .count
-
-        return AgentActivitySnapshot(
-            codexActiveCount: codexCount,
-            claudeActiveCount: claudeCount
-        )
-    }
-
-    private func recentJSONLFiles(under root: URL, now: Date) -> [URL] {
-        let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else {
-            return []
         }
-
-        var results: [URL] = []
-        for case let fileURL as URL in enumerator where fileURL.pathExtension == "jsonl" {
-            guard let values = try? fileURL.resourceValues(forKeys: Set(keys)),
-                  values.isRegularFile == true,
-                  let modifiedAt = values.contentModificationDate,
-                  now.timeIntervalSince(modifiedAt) <= maximumSessionAge else {
-                continue
-            }
-            results.append(fileURL)
-        }
-        return results
+        states = retainedStates
+        return AgentActivitySnapshot(codexActiveCount: codexCount, claudeActiveCount: claudeCount)
     }
 
     private func lastActivityState(
         from fileURL: URL,
+        fileSize: Int,
         classifier: (Data) -> Bool?
     ) -> Bool? {
-        guard let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
-            return nil
-        }
-
         var tailSize = min(initialTailSize, fileSize)
         while tailSize > 0 {
             let lines = readTailLines(from: fileURL, maximumSize: tailSize)

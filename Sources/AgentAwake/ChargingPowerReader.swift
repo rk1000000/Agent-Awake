@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import IOKit
 import IOKit.ps
 import AgentAwakeCore
@@ -16,6 +17,9 @@ enum ChargingPowerReader {
         return ChargingTelemetry(
             externalPowerConnected: externalPowerConnected,
             adapterWatts: validAdapterWatts(adapter?[kIOPSPowerAdapterWattsKey as String]),
+            recommendedAdapterWatts: MacPowerProfile.recommendedAdapterWatts(
+                forModelIdentifier: hardwareModelIdentifier()
+            ),
             inputWatts: positiveMilliwatts(telemetry?["SystemPowerIn"]),
             batteryWatts: signedMilliwatts(telemetry?["BatteryPower"]),
             slowChargingDetected: (integer(charger?["SlowChargingReason"]) ?? 0) > 0
@@ -68,6 +72,19 @@ enum ChargingPowerReader {
 
     private static func integer(_ value: Any?) -> Int? {
         (value as? NSNumber)?.intValue
+    }
+
+    private static func hardwareModelIdentifier() -> String {
+        var size = 0
+        guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 1 else {
+            return ""
+        }
+
+        var bytes = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("hw.model", &bytes, &size, nil, 0) == 0 else {
+            return ""
+        }
+        return String(cString: bytes)
     }
 
     private static func validAdapterWatts(_ value: Any?) -> Int? {

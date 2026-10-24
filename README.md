@@ -104,13 +104,18 @@ Closed-lid protection requires a root-owned helper because macOS clamshell sleep
 - accepts a heartbeat no larger than 4 KB;
 - rejects symlinks and files with permissions other than `0600`;
 - verifies the file owner, heartbeat UID, process UID, executable path, and freshness;
-- restores normal sleep after a stale heartbeat or application exit.
+- restores normal sleep after a stale heartbeat or application exit;
+- keeps its ownership markers in `/Library/Application Support/com.rodion.agentawake/`, because `pmset disablesleep`
+  survives a reboot while `/var/run` does not. A `SleepDisabled` flag found at helper start is treated as a leftover of
+  an interrupted session and released unless a fresh heartbeat exists.
 
 See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and the supported-version policy.
 
 ## Development
 
-Power helper version 6 releases temporary Foundation objects after every polling
+Power helper version 7 stores sleep ownership on persistent storage, so a reboot or crash
+during a closed-lid session can no longer leave the Mac permanently unable to sleep.
+Version 6 released temporary Foundation objects after every polling
 iteration. This fixes autoreleased-object accumulation without changing
 sleep, heartbeat validation, or low-power behaviour. Updating an existing installation
 requires replacing both its bundled helper/version and the installed privileged helper;
@@ -157,6 +162,8 @@ Agent Awake is available under the [MIT License](LICENSE).
 
 ### Detector polling cost
 
+Outside "While agents are working" mode, journals are scanned every 30 seconds and when
+the menu opens. A journal that only grew is read from where the previous poll stopped.
 Session discovery caches directory entries using fresh filesystem metadata.
 Each two-second poll still checks every journal's current metadata and session age,
 but unchanged journals reuse their last activity result instead of parsing JSON again.

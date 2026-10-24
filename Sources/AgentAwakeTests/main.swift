@@ -749,5 +749,71 @@ test("Sosumi предупреждает после 10 секунд пробле�
     )
 }
 
+test("дописанный журнал читается с места остановки так же, как целиком") {
+    let temporaryHome = FileManager.default.temporaryDirectory
+        .appendingPathComponent("agent-awake-append-test-\(UUID().uuidString)")
+    let sessions = temporaryHome.appendingPathComponent(".codex/sessions", isDirectory: true)
+    try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: temporaryHome) }
+
+    let file = sessions.appendingPathComponent("growing.jsonl")
+    let started = #"{"type":"event_msg","payload":{"type":"task_started"}}"#
+    let complete = #"{"type":"event_msg","payload":{"type":"task_complete"}}"#
+    let filler = String(repeating: #"{"type":"response_item","payload":{"type":"x"}}"# + "\n", count: 3_000)
+    let longLived = AgentActivityDetector(homeURL: temporaryHome)
+
+    func append(_ text: String) throws {
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(text.utf8))
+        try handle.close()
+    }
+    func check(_ expected: Int, _ step: String) throws {
+        let cached = longLived.snapshot().codexActiveCount
+        let fresh = AgentActivityDetector(homeURL: temporaryHome).snapshot().codexActiveCount
+        try expect(cached == fresh && cached == expected, "\(step): кэш \(cached), заново \(fresh), ждали \(expected)")
+    }
+
+    try Data((started + "\n").utf8).write(to: file)
+    try check(1, "старт")
+    for round in 0..<4 {
+        try append(filler)
+        try check(1, "шум \(round)")
+    }
+    try append(String(complete.prefix(20)))
+    try check(1, "половина строки")
+    try append(String(complete.dropFirst(20)))
+    try check(0, "строка без перевода")
+    try append("\n" + filler)
+    try check(0, "после завершения")
+    try append(started)
+    try check(1, "новый старт без перевода строки")
+    try Data((complete + "\n").utf8).write(to: file)
+    try check(0, "файл переписан короче")
+    try Data((started + "\n").utf8).write(to: file)
+    try check(1, "перезапуск задачи")
+    let rewrite = try FileHandle(forWritingTo: file)
+    try rewrite.truncate(atOffset: 0)
+    try rewrite.write(contentsOf: Data((complete + "\n" + filler).utf8))
+    try rewrite.close()
+    try check(0, "файл переписан на месте и стал длиннее")
+
+    // A rewrite that keeps the head and the bytes before the resume point is only caught by
+    // the periodic full read, at most a minute later.
+    let padding = String(repeating: " ", count: complete.utf8.count - started.utf8.count)
+    let prefix = filler + started + padding + "\n"
+    try Data((prefix + filler).utf8).write(to: file)
+    try check(1, "старт в середине файла")
+    let sameBoundaries = try FileHandle(forWritingTo: file)
+    try sameBoundaries.truncate(atOffset: 0)
+    try sameBoundaries.write(contentsOf: Data((filler + complete + "\n" + filler + filler).utf8))
+    try sameBoundaries.close()
+    _ = longLived.snapshot()
+    let later = Date().addingTimeInterval(61)
+    let cached = longLived.snapshot(now: later).codexActiveCount
+    let fresh = AgentActivityDetector(homeURL: temporaryHome).snapshot(now: later).codexActiveCount
+    try expect(cached == 0 && fresh == 0, "перезапись с теми же границами не исправлена через минуту: кэш \(cached), заново \(fresh)")
+}
+
 print("Tests: \(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

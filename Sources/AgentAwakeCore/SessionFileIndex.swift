@@ -35,22 +35,30 @@ struct SessionFileStamp: Equatable {
 final class SessionFileIndex {
     private struct Directory {
         let stamp: SessionFileStamp
-        let children: [(url: URL, isDirectory: Bool)]
+        let children: [Child]
+    }
+    // Path strings and the journal test are computed once per directory listing: building
+    // them for ~5 000 files on every two-second poll was the detector's main remaining cost.
+    private struct Child {
+        let url: URL
+        let path: String
+        let isDirectory: Bool
+        let isJournal: Bool
     }
     private var directories: [String: Directory] = [:]
     private let fileManager: FileManager
 
     init(fileManager: FileManager) { self.fileManager = fileManager }
 
-    func files(under roots: [URL]) -> [(url: URL, rootIndex: Int)] {
+    func files(under roots: [URL]) -> [(url: URL, path: String, rootIndex: Int)] {
         var visited = Set<String>()
-        var files: [(url: URL, rootIndex: Int)] = []
-        var pending = roots.enumerated().map { (url: $0.element, rootIndex: $0.offset) }
+        var files: [(url: URL, path: String, rootIndex: Int)] = []
+        var pending = roots.enumerated().map { (url: $0.element, path: $0.element.path, rootIndex: $0.offset) }
         while let directory = pending.popLast() {
-            let path = directory.url.path
+            let path = directory.path
             guard let stamp = SessionFileStamp(path: path), stamp.isDirectory else { continue }
             visited.insert(path)
-            let children: [(url: URL, isDirectory: Bool)]
+            let children: [Child]
             if let cached = directories[path], cached.stamp == stamp {
                 children = cached.children
             } else {
@@ -66,13 +74,21 @@ final class SessionFileIndex {
                     guard let values = try? url.resourceValues(forKeys: [
                         .isDirectoryKey, .isPackageKey, .isSymbolicLinkKey
                     ]), values.isSymbolicLink != true, values.isPackage != true else { return nil }
-                    return (url, values.isDirectory == true)
+                    let isDirectory = values.isDirectory == true
+                    let childPath = url.path
+                    return Child(
+                        url: url,
+                        path: childPath,
+                        isDirectory: isDirectory,
+                        isJournal: !isDirectory && url.pathExtension == "jsonl"
+                            && !childPath.contains("claude-mem-observer-sessions")
+                    )
                 }
                 directories[path] = Directory(stamp: stamp, children: children)
             }
             for child in children {
-                if child.isDirectory { pending.append((child.url, directory.rootIndex)) }
-                else if child.url.pathExtension == "jsonl" { files.append((child.url, directory.rootIndex)) }
+                if child.isDirectory { pending.append((child.url, child.path, directory.rootIndex)) }
+                else if child.isJournal { files.append((child.url, child.path, directory.rootIndex)) }
             }
         }
         directories = directories.filter { visited.contains($0.key) }

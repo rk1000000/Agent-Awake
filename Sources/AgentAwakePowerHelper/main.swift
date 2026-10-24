@@ -3,8 +3,32 @@ import Foundation
 import AgentAwakeCore
 import OSLog
 
-private let sleepOwnershipMarker = URL(fileURLWithPath: "/var/run/com.rodion.agentawake.sleep-disabled")
-private let lowPowerOwnershipMarker = URL(fileURLWithPath: "/var/run/com.rodion.agentawake.low-power")
+// pmset keeps disablesleep and lowpowermode across reboots, but /var/run is wiped at boot.
+// Ownership markers therefore live on persistent storage, otherwise a session interrupted
+// by a reboot or crash leaves the Mac unable to sleep forever.
+private let stateDirectory = URL(fileURLWithPath: "/Library/Application Support/com.rodion.agentawake", isDirectory: true)
+private let sleepOwnershipMarker = stateDirectory.appendingPathComponent("sleep-disabled")
+private let lowPowerOwnershipMarker = stateDirectory.appendingPathComponent("low-power")
+private let legacyMarkers = [
+    URL(fileURLWithPath: "/var/run/com.rodion.agentawake.sleep-disabled"),
+    URL(fileURLWithPath: "/var/run/com.rodion.agentawake.low-power")
+]
+try? FileManager.default.createDirectory(
+    at: stateDirectory,
+    withIntermediateDirectories: true,
+    attributes: [.posixPermissions: 0o755]
+)
+for (legacy, current) in zip(legacyMarkers, [sleepOwnershipMarker, lowPowerOwnershipMarker])
+    where FileManager.default.fileExists(atPath: legacy.path) {
+    FileManager.default.createFile(atPath: current.path, contents: Data())
+    try? FileManager.default.removeItem(at: legacy)
+}
+// Agent Awake is the only disablesleep user this helper serves. A SleepDisabled flag found
+// at helper start without our marker is a leftover of an interrupted session: adopt it so
+// the normal reconcile releases it when no fresh heartbeat exists.
+if ClamshellController.systemSleepIsDisabled() == true {
+    FileManager.default.createFile(atPath: sleepOwnershipMarker.path, contents: Data())
+}
 private let lowPowerAppliedMarker = PowerHeartbeat.lowPowerAppliedMarkerURL
 private let maximumHeartbeatAge: TimeInterval = 10
 private let logger = Logger(subsystem: "com.rodion.agentawake", category: "power-helper")
@@ -128,8 +152,8 @@ private func reconcileSleepOverride(heartbeatExists: Bool) {
     let currentlyDisabled = sleepIsDisabled()
 
     if heartbeatExists {
-        guard !currentlyDisabled else { return }
-        guard mark(sleepOwnershipMarker) else { return }
+        // Take ownership even if the flag is already set, so the release path always runs.
+        guard owns(sleepOwnershipMarker) || mark(sleepOwnershipMarker), !currentlyDisabled else { return }
         if !setSleepDisabled(true) {
             clear(sleepOwnershipMarker)
         }

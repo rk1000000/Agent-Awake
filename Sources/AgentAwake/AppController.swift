@@ -35,6 +35,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var agentsWereBusy = false
     private var hasCompletedAgentScan = false
     private var scanInProgress = false
+    private var lastAgentScanStart = Date.distantPast
     private var menuIsOpen = false
     private var clamshellSleepDisabled = false
     private var helperInstallAttempted = false
@@ -139,6 +140,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         menuIsOpen = true
         rebuildMenu()
+        scanAgentsIfNeeded(force: true)
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -172,9 +174,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
     }
 
-    private func scanAgentsIfNeeded() {
+    // Agent counts drive the policy only in agents mode; other modes just keep the menu line
+    // roughly fresh, so they scan every 30 s instead of every 2 s.
+    private func scanAgentsIfNeeded(force: Bool = false) {
         guard !scanInProgress else { return }
+        guard force || mode == .agents || Date().timeIntervalSince(lastAgentScanStart) >= 30 else {
+            return
+        }
         scanInProgress = true
+        lastAgentScanStart = Date()
 
         detectorQueue.async { [weak self] in
             guard let self else { return }
@@ -249,9 +257,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func scheduleSleep() {
+    // `pmset sleepnow` is ignored while SleepDisabled is set, and the helper clears it on its
+    // next one-second poll, so wait for the flag (up to 5 s) before asking for sleep.
+    private func scheduleSleep(attempt: Int = 0) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.putMacToSleep()
+            guard let self else { return }
+            if ClamshellController.systemSleepIsDisabled() == true && attempt < 10 {
+                self.scheduleSleep(attempt: attempt + 1)
+                return
+            }
+            self.putMacToSleep()
         }
     }
 
@@ -575,7 +590,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func startAgents() {
         mode = .agents
         persistMode()
-        agentsWereBusy = agents.totalActiveCount > 0
+        if Date().timeIntervalSince(lastAgentScanStart) > 3 {
+            // The last count may be up to 30 s old; wait for a fresh scan before deciding.
+            hasCompletedAgentScan = false
+            agentsWereBusy = false
+            scanAgentsIfNeeded(force: true)
+        } else {
+            agentsWereBusy = agents.totalActiveCount > 0
+        }
         lastError = nil
         evaluatePolicy()
         rebuildMenu()
@@ -758,10 +780,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func reconcileSleepProtectionNotification() {
-        let lidClosed = ClamshellController.lidIsClosed() ?? system.lidClosed
-        let protectionActive = keepAwakeWithLidClosed
+        // This runs four times a second: skip the IOKit reads unless protection can be active.
+        let protectionRequested = keepAwakeWithLidClosed
             && clamshellSleepDisabled
             && sleepAssertion.isHeld
+        let lidClosed = protectionRequested
+            && (ClamshellController.lidIsClosed() ?? system.lidClosed)
+        let protectionActive = protectionRequested
             && ClamshellController.systemSleepIsDisabled() == true
 
         guard sleepProtectionNotification.update(

@@ -20,7 +20,7 @@ Agent Awake is designed for that exact workflow:
 
 - **Agent-aware mode** — detects active Claude Code, Codex CLI, and Codex Desktop tasks from local session state.
 - **Closed-lid operation** — maintains the system sleep override only while a fresh, authenticated local heartbeat exists.
-- **Timers** — 30 minutes, 1 hour, 2 hours, indefinite, or any custom value from 1–60 minutes.
+- **Timers** — 30 minutes, 1 hour, 2 hours, indefinite, or any custom duration in hours and minutes, from 1 minute to 24 hours.
 - **Automatic release** — allow normal macOS sleep or request immediate sleep after agents finish.
 - **Energy saving** — after 10 seconds with the lid closed, optionally set the built-in display to 0% and enable Low Power Mode.
 - **Thermal safety** — optionally release all holds and sleep when macOS reports `serious` or `critical` thermal pressure.

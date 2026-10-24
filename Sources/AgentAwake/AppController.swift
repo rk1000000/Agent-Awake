@@ -553,23 +553,42 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func startCustomTimed() {
-        let field = NSTextField(string: String(lastCustomMinutes))
-        field.placeholderString = "1–60"
-        field.frame.size = NSSize(width: 180, height: 24)
+        let hoursField = NSTextField(string: String(lastCustomMinutes / 60))
+        hoursField.placeholderString = "0–24"
+        let minutesField = NSTextField(string: String(lastCustomMinutes % 60))
+        minutesField.placeholderString = "0–59"
+        for field in [hoursField, minutesField] {
+            field.alignment = .right
+            field.widthAnchor.constraint(equalToConstant: 56).isActive = true
+        }
+        hoursField.nextKeyView = minutesField
+        minutesField.nextKeyView = hoursField
+
+        let fields = NSStackView(views: [
+            hoursField, NSTextField(labelWithString: "ч"),
+            minutesField, NSTextField(labelWithString: "мин")
+        ])
+        fields.orientation = .horizontal
+        fields.spacing = 6
+        fields.frame.size = NSSize(width: 200, height: 24)
 
         let alert = NSAlert()
-        alert.messageText = "Сколько минут не давать Mac уснуть?"
-        alert.informativeText = "Введите целое число от 1 до 60."
+        alert.messageText = "Сколько времени не давать Mac уснуть?"
+        alert.informativeText = "Укажите часы и минуты: от 1 минуты до 24 часов."
         alert.alertStyle = .informational
-        alert.accessoryView = field
+        alert.accessoryView = fields
         alert.addButton(withTitle: "Запустить")
         alert.addButton(withTitle: "Отмена")
+        alert.window.initialFirstResponder = hoursField
 
         NSApp.activate(ignoringOtherApps: true)
         while alert.runModal() == .alertFirstButtonReturn {
-            guard let minutes = TimedSession.parseMinutes(field.stringValue) else {
+            guard let minutes = TimedSession.parseDuration(
+                hours: hoursField.stringValue,
+                minutes: minutesField.stringValue
+            ) else {
                 NSSound.beep()
-                alert.informativeText = "Нужно целое число от 1 до 60 минут."
+                alert.informativeText = "Нужны целые числа: часы от 0 до 24, минуты от 0 до 59, всего от 1 минуты до 24 часов."
                 continue
             }
             lastCustomMinutes = minutes

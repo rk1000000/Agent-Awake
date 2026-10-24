@@ -248,12 +248,28 @@ test("Funk предупреждает один раз в последнюю ми
     )
 }
 
-test("свой таймер принимает только целое число от 1 до 60 минут") {
-    try expect(TimedSession.parseMinutes(" 1 ") == 1, "1 минута отклонена")
-    try expect(TimedSession.parseMinutes("60") == 60, "60 минут отклонены")
-    try expect(TimedSession.parseMinutes("0") == nil, "0 минут ошибочно принято")
-    try expect(TimedSession.parseMinutes("61") == nil, "61 минута ошибочно принята")
-    try expect(TimedSession.parseMinutes("1.5") == nil, "дробное число ошибочно принято")
+test("свой таймер принимает часы и минуты от 1 минуты до 24 часов") {
+    try expect(TimedSession.parseDuration(hours: "", minutes: " 1 ") == 1, "1 минута отклонена")
+    try expect(TimedSession.parseDuration(hours: "0", minutes: "45") == 45, "45 минут отклонены")
+    try expect(TimedSession.parseDuration(hours: "2", minutes: "30") == 150, "2 ч 30 мин не равны 150 минутам")
+    try expect(TimedSession.parseDuration(hours: "5", minutes: "") == 300, "5 часов без минут отклонены")
+    try expect(TimedSession.parseDuration(hours: "24", minutes: "0") == 1_440, "24 часа отклонены")
+    try expect(TimedSession.parseDuration(hours: "0", minutes: "0") == nil, "ноль ошибочно принят")
+    try expect(TimedSession.parseDuration(hours: "24", minutes: "1") == nil, "больше 24 часов ошибочно принято")
+    try expect(TimedSession.parseDuration(hours: "1", minutes: "60") == nil, "60 минут в поле минут ошибочно приняты")
+    try expect(TimedSession.parseDuration(hours: "-1", minutes: "30") == nil, "отрицательные часы ошибочно приняты")
+    try expect(TimedSession.parseDuration(hours: "1.5", minutes: "0") == nil, "дробное число ошибочно принято")
+    try expect(TimedSession.parseDuration(hours: "+1", minutes: "0") == nil, "число со знаком плюс ошибочно принято")
+}
+
+test("остаток больше часа показывается часами и минутами") {
+    let until = now.addingTimeInterval(2 * 3600 + 4 * 60 + 1)
+    let label = TimedSession.remainingLabel(until: until, now: now)
+    try expect(label == "2h 05m", "остаток 2 ч 4 мин 1 с показан как \(label)")
+    try expect(
+        TimedSession.remainingLabel(until: now.addingTimeInterval(59 * 60 + 30), now: now) == "1h 00m",
+        "остаток 59 мин 30 с не округлён до 1h 00m"
+    )
 }
 
 test("закрытая крышка применяет экономию через 10 секунд и открытие сразу восстанавливает") {

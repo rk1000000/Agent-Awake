@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 (22) — 2026-10-24
+
+- **Feature:** "Своё время…" takes hours and minutes (two fields), from 1 minute to 24 hours; it was 1–60 minutes.
+  The menu bar shows the remaining time over an hour as `2h 05m`.
+
 ## 0.5.1 (21) — 2026-10-24
 
 - **Fix:** the Mac could stay unable to sleep forever (even with Agent Awake quit) after a reboot or crash during a
